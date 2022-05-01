@@ -22,17 +22,18 @@ import graphviz
 
 dot = graphviz.Digraph("mainGraph", strict=True, graph_attr={"rankdir": "LR"})
 h = 2 #the number of bits handled per mini trellis or block
-m = [0,1,1,1,1,1] #must be a power of 2 and equal to 2**h
+m = [0,1,1,1,1,1] #must be a power of 2
+assert(len(m)%h == 0)
 s = []
 for i in range(0, len(m)):
 	s.append(0)
 x = [1,0,1,1,0,0,0,1,0,1,0,1] #cover object see below
 w = int(len(x) / len(m)) #Keep this number an intager for simplicity
-subH = [[1,0],[1, 1]] # chosen randomly atm but h is height and w is width as described above.
+subH = [[1,0],[1,1],[1, 1]] # chosen randomly atm but h is height and w is width as described above.
 b = int(len(x)/w) # number of copies of subH in H
 #Height of matrix = trellisHeight = 2**h
 #Width of matrix = trellisHeight*w = (2**h)*w
-trellisHeight = len(m)
+trellisHeight = 2**h
 trellisWidth = int((w+1)*len(m))
 trellisNodes = []
 trellisNodes.append(1)
@@ -42,7 +43,7 @@ for i in range(1, trellisWidth+1):
 
 
 def bulidH():
-	height = trellisHeight #len(m)
+	height = len(m)
 	width = height*w #len(x)
 	H = []
 	for i in range(0, height):
@@ -57,8 +58,10 @@ def bulidH():
 			for y in range(0, w):
 				if (row+x >= height) or (column+y >= width):
 					break
+				print(x)
+				print(y)
 				H[row+x][column+y] = subH[x][y]
-		row = row+h-1
+		row = row+1
 		column = column+w
 	return H
 H = bulidH()
