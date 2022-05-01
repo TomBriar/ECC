@@ -1,0 +1,16 @@
+% Default course lecture note template by asp 
+\documentclass[letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage[top=3cm, bottom=3cm, left=3.85cm, right=3.85cm]{geometry}
+\usepackage[onehalfspacing]{setspace}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage[usenames,dvipsnames]{color}
+\setcounter{MaxMatrixCols}{40}
+
+\begin{document}
+	$(\sum_{i = 0}^{N} \binom{N}{i} (\frac{B}{K})^i (\frac{K-B}{K})^{N-i}) = 1$
+	
+\end{document}
+
