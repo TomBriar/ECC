@@ -22,17 +22,17 @@ import graphviz
 
 dot = graphviz.Digraph("mainGraph", strict=True, graph_attr={"rankdir": "LR"})
 h = 2 #the number of bits handled per mini trellis or block
-m = [0,1,1,1]
+m = [0,1,1,1,1,1] #must be a power of 2 and equal to 2**h
 s = []
 for i in range(0, len(m)):
 	s.append(0)
-x = [1,0,1,1,0,0,0,1] #every h bit section is handled individualy meaning that with h = 2 every other bit is consider a LSB.
+x = [1,0,1,1,0,0,0,1,0,1,0,1] #cover object see below
 w = int(len(x) / len(m)) #Keep this number an intager for simplicity
-b = 2**h # number of copies of subH in H
 subH = [[1,0],[1, 1]] # chosen randomly atm but h is height and w is width as described above.
+b = int(len(x)/w) # number of copies of subH in H
 #Height of matrix = trellisHeight = 2**h
 #Width of matrix = trellisHeight*w = (2**h)*w
-trellisHeight = 2**h
+trellisHeight = len(m)
 trellisWidth = int((w+1)*len(m))
 trellisNodes = []
 trellisNodes.append(1)
@@ -42,8 +42,8 @@ for i in range(1, trellisWidth+1):
 
 
 def bulidH():
-	height = 2**h
-	width = height*w
+	height = trellisHeight #len(m)
+	width = height*w #len(x)
 	H = []
 	for i in range(0, height):
 		Hi = []
@@ -68,6 +68,7 @@ for i in range(0, len(H[0])):
 for i in range(0, len(H)):
 	for ii in range(0, len(H[i])):
 		CH[ii].append(H[i][ii])
+print(H)
 
 
 #trellis block height 2^h width w+1
@@ -149,11 +150,12 @@ def genEdges(nodes):
 	for i in range(0, len(nodes)-1):
 		edges.append([])
 	startNodes = [(0,0,s)]
-	for i in range(0, len(m)):
+	for i in range(0, len(m)): #run once per bit of message
 		#Column 
-		for ii in range(0, h):
+		for ii in range(0, w): #run w where w = len(x)/w = len(m)
 			cost0 = x[(i*2)+ii]
 			cost1 = 1 
+			print((i*2)+ii)
 			if (x[(i*2)+ii]):
 				cost1 = 0
 			newNodes = []
@@ -168,7 +170,7 @@ def genEdges(nodes):
 				addEdge(edges, str(startNodes[iii][0])+str(startNodes[iii][1]), str(startNodes[iii][0]+1)+str(newbit), 1, cost1)
 			startNodes = newNodes
 		newStartNodes = []
-		for ii in range(0, len(startNodes)):
+		for ii in range(0, len(startNodes)): # prune run to account for the +1 of w+1
 			if (startNodes[ii][2][i] == m[i]):
 				newStartNodes.append(startNodes[ii])
 		startNodes = newStartNodes
@@ -249,8 +251,10 @@ minimumPath = list(filter(lambda x : x != '2' , minimumPath))
 result = []
 for i in range(0, len(minimumPath)):
 	result.append(int(minimumPath[i]))
-
 assert(MatrixMulti(H, result) == m)
+print(x)
+print(result)
+
 
 
 dot.render('doctest-output/round-table.gv').replace('\\', '/')
