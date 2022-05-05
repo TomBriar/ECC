@@ -2,87 +2,60 @@ import hashlib
 import struct
 from datetime import datetime
 import math
+import random
 import json
 import itertools
 import graphviz
-
-dot = graphviz.Digraph("mainGraph", strict=True, graph_attr={"rankdir": "LR"})
-subH = [[1,0,1,1,0,1,0,1,1,1,1,1,1,0,0,1],[1,1,0,0,0,1,1,1,1,0,0,1,0,0,1,1]] # chosen randomly atm but h is height and w is width.
-h = len(subH) #the number of bits handled per mini trellis or block
-m = [0,1] #must  divide h
-assert(len(m) == h)
-x = [1,0,1,1,0,0,0,1,1,0,1,1,0,0,0,1,1,0,1,1,0,0,0,1,1,0,1,1,0,0,0,1] #cover object
-w = int(len(x) / len(m)) #Keep this number an intager for simplicity 
-# assert(w < len(m))
-assert(w == len(subH[0])) #w is width of subH as well as the rate of the code.
-b = int(len(x)/w) # number of copies of subH in H
+import sys
+sys.setrecursionlimit(20000)
 
 
-s = []
-for i in range(0, len(m)):
-	s.append(0)
-trellisHeight = 2**h
-trellisWidth = int((w+1)*len(m))
-trellisNodes = []
-trellisNodes.append(1)
-for i in range(1, trellisWidth+1):
-	trellisNodes.append(trellisHeight)
-# trellisNodes.append(1)
+def StrToCover(a, limit, weights=False):
+	x = []
+	xc = []
+	counter = 0
+	for i in a:
+		cost = 0
+		if (weights and weights[i]):
+			cost = weights[i]
+		elif (weights):
+			cost = len(x) #len(x) cost so high it won't affect the cover object
+		string = str(int(bin(ord(i))[2:]))
+		for i in range(0, 8-len(string)):
+			string = "0"+string
+		for i in range(0, len(string)):
+			if (not counter < limit):
+				return (x, xc)	
+			else:
+				counter += 1
+			x.append(int(string[i]))
+			xc.append(cost)
+	return (x, xc)
 
 
-def bulidH():
-	height = len(m)
-	width = height*w #len(x)
-	H = []
-	for i in range(0, height):
-		Hi = []
-		for x in range(0, width):
-			Hi.append(0)
-		H.append(Hi)
-	row = 0
-	column = 0
-	for i in range(0, b):
-		for x in range(0, h):
-			for y in range(0, w):
-				if (row+x >= height) or (column+y >= width):
-					break
-				H[row+x][column+y] = subH[x][y]
-		row = row+1
-		column = column+w
-	return H
-H = bulidH()
-CH = []
-for i in range(0, len(H[0])):
-	CH.append([])
-for i in range(0, len(H)):
-	for ii in range(0, len(H[i])):
-		CH[ii].append(H[i][ii])
-for i in range(0, len(H)):
-	print(H[i])
+useGraphviz = 0 #Optional trellis rendering via Graphviz
+if (useGraphviz):
+	dot = graphviz.Digraph("mainGraph", strict=True, graph_attr={"rankdir": "LR"}) #Graphviz initilization.
+# subH = [[1,0,1,1,0,1,0,1,1,1,1,1,1,0,0,1],[1,1,0,0,0,1,1,1,1,0,0,1,0,0,1,1]] # chosen randomly atm but h is height and w is width.
+subH = [[],[],[]] #subH is a template for the subH generated randomly below
+h = len(subH) #The height of the matrx, concerns the performance of the code.
+m = [0,1,1,1] #Your message to encode.
+f = open("input.txt", "r")
+string = f.read()
+coverlength = 1024
+(x, xc) = StrToCover(string, coverlength)
+w = int(len(x) / len(m)) #This is the rate of the code. This is also the width of the matrix.
+#Generate random subH
+for i in range(0, h):
+	for ii in range(0, w):
+		subH[i].append(random.getrandbits(1))
+assert(w == len(subH[0])) #Assertation of the above.
 
 
-#trellis block height 2^h width w+1
-def genNodes(template):
-	maxheight = 0
-	nodes = []
-	for n in range(0, len(template)):
-		# subGraph = graphviz.Digraph("cluster"+name, strict=False, graph_attr={"label": name})
-		if maxheight < template[n]:
-			maxheight = template[n]
-		nslice = []
-		for i in range(0, template[n]):
-			node = {"name": str(n)+str(i), "cost": 0}
-			nslice.append(node)
-			# subGraph.node(node['name'], label=node['name']+" cost: "+str(node['cost']))
-		# dot.subgraph(subGraph)
-		nodes.append(nslice)
-	return (nodes, maxheight)
-
+#UTILS
 def addEdge(edges, fromNode, toNode, output, cost=3):
 	edge = {"from": fromNode, "to": toNode, "output": output, "cost": cost}
 	edges.append(edge)
-	# dot.edge(edge['from'], edge['to'], xlabel=str(edge['output'])+" = "+str(edge['cost'])[:5], rank="same")
-
 
 def xor(a, b):
 	result = []
@@ -133,88 +106,116 @@ def findState(news, i):
 
 
 
+def bulidH():
+	height = len(m)
+	width = height*w #len(x)
+	H = []
+	for i in range(0, height):
+		Hi = []
+		for ii in range(0, width):
+			Hi.append(0)
+		H.append(Hi)
+	row = 0
+	column = 0
+	for i in range(0, int(len(x)/w)):
+		for ii in range(0, h):
+			for y in range(0, w):
+				if (row+ii >= height) or (column+y >= width):
+					break
+				H[row+ii][column+y] = subH[ii][y]
+		row = row+1
+		column = column+w
+	CH = []
+	for i in range(0, len(H[0])):
+		CH.append([])
+	for i in range(0, len(H)):
+		for ii in range(0, len(H[i])):
+			CH[ii].append(H[i][ii])
+	return (H, CH)
+
+(H, CH) = bulidH() #Assemble the parity check matrix from subH
+
+
+def genNodes(): 
+	trellisHeight = 2**h # the number of nodes per column
+	trellisWidth = int((w+1)*len(m)) # the number of columns +1 for prune column.
+	trellisNodes = []
+	trellisNodes.append(1)
+	for i in range(1, trellisWidth+1):
+		trellisNodes.append(trellisHeight)
+	maxheight = 0
+	nodes = []
+	for n in range(0, len(trellisNodes)):
+		if maxheight < trellisNodes[n]:
+			maxheight = trellisNodes[n]
+		nslice = []
+		for i in range(0, trellisNodes[n]):
+			node = {"name": str(n)+str(i), "cost": 0}
+			nslice.append(node)
+		nodes.append(nslice)
+	return (nodes, maxheight)
+
+(nodes, maxheight) = genNodes() #Generate an array of arrays for each set of nodes for each time slice
+
 def genEdges(nodes):
-	originNode = ""
-	edges = []
-	# for i in range(0, len(nodes)-1):
-		# edges.append([])
-	startNodes = [(0,0,s)]
+	#Initialize varibles
+	originNode = "" 
+	edges = [] #edges of trellis
+	s = [] #empty syndrom of len(m)
+	for i in range(0, len(m)):
+		s.append(0)
+	startNodes = [(0,0,s)] #At each iter these are the nodes to start from
+
 	for i in range(0, len(m)): #run once per bit of message
-		#Column 
 		for ii in range(0, w): #run w where w = len(x)/w = len(m)
-			cost0 = x[(i*w)+ii] #IMPORTANT i * w = ii = range(0, w)
-			cost1 = 1 
-			if (x[(i*w)+ii]): #IMPORTANT i * w = ii = range(0, w)
+			index = (i*w)+ii
+			coverbit = x[index] #The bit of the cover object we are currently using
+			cost0 = coverbit #The cost 0 or 1 that we get if we don't add the (i*w)+ii column of H to the syndrom
+			cost1 = 1 #The oposite of above
+			if (coverbit):
 				cost1 = 0
 			newNodes = []
-			for iii in range(0, len(startNodes)):
-				#dont add
+			for iii in range(0, len(startNodes)): #Loop through each of the starting nodes
+
 				node = (startNodes[iii][0]+1,startNodes[iii][1], startNodes[iii][2])
-				# print("don't add: "+str(node))
 				if (not node in newNodes):
 					newNodes.append(node)
-				# print("don't add: "+str(startNodes[iii][0])+str(startNodes[iii][1])+" to "+str(startNodes[iii][0]+1)+str(startNodes[iii][1])+", cost: "+str(cost0))
-				# print(str(startNodes[iii][0]+1)+str(startNodes[iii][1]))
-				addEdge(edges, str(startNodes[iii][0])+str(startNodes[iii][1]), str(startNodes[iii][0]+1)+str(startNodes[iii][1]), 0, cost0)
-				#add 
-				news = xor(startNodes[iii][2], CH[(i*w)+ii]) #IMPORTANT i * w = ii = range(0, w)
-				newbit = findState(news, i)
+				addEdge(edges, str(startNodes[iii][0])+str(startNodes[iii][1]), str(startNodes[iii][0]+1)+str(startNodes[iii][1]), 0, cost0) #Add the edge equivlent of not adding the ith column of H to the syndrom
+
+				news = xor(startNodes[iii][2], CH[index]) #Compute the current syndrom + the index column of H
+				newbit = findState(news, i) #Find the corisponding trellis state of the new syndrom
 				node = (startNodes[iii][0]+1, newbit, news)
-				# print("add: "+str(node))
-				if (not node in newNodes):
+				if (not node in newNodes): #Confirm this is not a duplicate path
 					add = 1
 					for iiii in range(0, len(newNodes)):
-						if (findState(newNodes[iiii][2], i) == newbit):
+						if (findState(newNodes[iiii][2], i) == newbit): #A more indepth check for duplicates
 							add = 0
 					if (add):
 						newNodes.append(node)
-				# if (str(startNodes[iii][0]+1)+str(startNodes[iii][1]) == "161"):
-					# print(cost1)
-				addEdge(edges, str(startNodes[iii][0])+str(startNodes[iii][1]), str(startNodes[iii][0]+1)+str(newbit), 1, cost1)
-				# print("add: "+str(startNodes[iii][0])+str(startNodes[iii][1])+" to "+str(startNodes[iii][0]+1)+str(newbit)+", cost: "+str(cost1))
+				addEdge(edges, str(startNodes[iii][0])+str(startNodes[iii][1]), str(startNodes[iii][0]+1)+str(newbit), 1, cost1) #Add the edge equvilent to adding the ith column of H to the syndrom
+
 			startNodes = newNodes
 		newStartNodes = []
-		# print(startNodes)
-		print("--")
-		for ii in range(0, len(startNodes)): # prune run to account for the +1 of w+1
-			# print(startNodes[ii][2][i])
-			print(m[i])
-			print(startNodes[ii][2][i])
-			print(startNodes[ii][2][i] == m[i])
-			if (startNodes[ii][2][i] == m[i]):
-				print(startNodes[ii])
-				newStartNodes.append(startNodes[ii])
-		startNodes = newStartNodes
-		newStartNodes = []
 		for ii in range(0, len(startNodes)):
-			news = startNodes[ii][2]
-			newbit = findState(news, i+1)
-			node = (startNodes[ii][0]+1, newbit, news)
-			if (not node in newStartNodes):
-				newStartNodes.append(node)
-			addEdge(edges, str(startNodes[ii][0])+str(startNodes[ii][1]), str(startNodes[ii][0]+1)+str(newbit), 2, 0)
+			if (startNodes[ii][2][i] == m[i]): #Prune our current list of starting nodes before the next run by matching the message bit that will be unchangable after this point
+				news = startNodes[ii][2] #Get the syndrom assoisated with this node
+				newbit = findState(news, i+1) #Find the new state based on the next index.
+				node = (startNodes[ii][0]+1, newbit, news)
+				if (not node in newStartNodes): #Don't append a duplicate start node caused by not changing the syndrom even after adding a column of H
+					newStartNodes.append(node)
+				addEdge(edges, str(startNodes[ii][0])+str(startNodes[ii][1]), str(startNodes[ii][0]+1)+str(newbit), 2, 0) #Add edges for the prune nodes that shift the state based on new important bits
 		startNodes = newStartNodes
-	originNode = getNodeByName(str(newStartNodes[0][0])+str(newStartNodes[0][1]))
+	originNode = getNodeByName(str(newStartNodes[0][0])+str(newStartNodes[0][1])) #Get the furthest node from the start
 	return (edges, originNode)
 
-# def addEdge(edges, fromNode, toNode, output, cost=0):
-	# edge = {"from": fromNode, "to": toNode, "output": output, "cost": cost}
-	# edges[int(fromNode[:1])].append(edge)
-	# dot.edge(edge['from'], edge['to'], xlabel=str(edge['output'])+" = "+str(edge['cost'])[:5], rank="same")
-
-# y = [0.2, 0.2, 1, 0, 0.2, 0.2, 0.2]
-(nodes, maxheight) = genNodes(trellisNodes)
-subGraph = graphviz.Digraph("cluster0", strict=False, graph_attr={"label": "0"})
-subGraph.node(nodes[0][0]['name'], label=(nodes[0][0]['name']+" cost: "+str(nodes[0][0]['cost'])))
-dot.subgraph(subGraph)
-(edges, originNode) = genEdges(nodes)
-# print(edges)
+(edges, originNode) = genEdges(nodes) #Generate the edges between the nodes.
 
 def forwardPass():
 	for n in range(1, len(nodes)):
 		Nnodes = nodes[n]
 		for i in range(0, len(Nnodes)):
 			node = Nnodes[i]
+			print(node)
 			paths = toNode(node)
 			costs = []
 			for path in paths:
@@ -228,28 +229,34 @@ def forwardPass():
 						mincost = cost
 				node['cost'] = mincost
 
+forwardPass()
+
 def minPath(originNode, output):
-	# print("-----------------------")
 	paths = toNode(originNode)
 	nodepaths = []
 	for path in paths:
 		nodepaths.append([getNodeByName(path['from']),path])
 	minNode = nodepaths[0]
 	for node in nodepaths:
-		# print(node[0])
-		# print(minNode)
-
 		if node[0]['cost']+node[1]['cost'] < minNode[0]['cost']+minNode[1]['cost']:
 			minNode = node 
-	dot.edge(minNode[0]['name'], originNode['name'], color='red')
-	# print(minNode)
-	# print(minNode[1]['output'])
+	if (useGraphviz):
+		dot.edge(minNode[0]['name'], originNode['name'], color='red')
 	if (toNode(minNode[0])):
+		print(minNode[0])
 		return minPath(minNode[0], output+str(minNode[1]['output']))
 	else: 
-		return (output+str(minNode[1]['output']))[::-1]
+		minimumPath = list(filter(lambda x : x != '2' , (output+str(minNode[1]['output']))[::-1])) 
+		result = []
+		for i in range(0, len(minimumPath)):
+			result.append(int(minimumPath[i]))
+		return (result, minimumPath)
+(result, strresult) = minPath(originNode, "") # Backwards pass of the vertui algorithim
 
 def render():
+	subGraph = graphviz.Digraph("cluster0", strict=False, graph_attr={"label": "0"})
+	subGraph.node(nodes[0][0]['name'], label=(nodes[0][0]['name']+" cost: "+str(nodes[0][0]['cost'])))
+	dot.subgraph(subGraph)
 	prune = 0
 	for n in range(1, len(nodes)):
 		if (n%(w+1) == 0):
@@ -265,22 +272,31 @@ def render():
 		dot.subgraph(subGraph)
 	for edge in edges:
 		dot.edge(edge['from'], edge['to'], xlabel=str(edge['output'])+" = "+str(edge['cost'])[:5], rank="same")
-forwardPass()
-render()
-minimumPath = minPath(originNode, "")
-minimumPath = list(filter(lambda x : x != '2' , minimumPath))
-result = []
-for i in range(0, len(minimumPath)):
-	result.append(int(minimumPath[i]))
-# assert(MatrixMulti(H, result) == m)
-print(m)
-print(MatrixMulti(H, result))
-print(x)
-print(result)
+	dot.render('doctest-output/trellis.gv').replace('\\', '/')
+	dot.render('doctest-output/trellis.gv', view=True) 
+
+assert(MatrixMulti(H, result) == m)
+
+def bits2a(b):
+	result = ""
+	for i in range(0,int(len(b)/8)):
+		byte = ''.join(b[i*8:(i+1)*8])
+		result += chr(int(byte, 2))
+	return result
+
+print(bits2a(strresult))
+print(string[:int(coverlength/8)])
+# strx = ""
+# for i in range(0, len(x)):
+# 	strx += str(x[i])
+# print(strx)
+# print(''.join(strresult))
 
 
 
-dot.render('doctest-output/round-table.gv').replace('\\', '/')
-'doctest-output/round-table.gv.pdf'
-dot.render('doctest-output/round-table.gv', view=True) 
-'doctest-output/round-table.gv.pdf'
+if (useGraphviz):
+	render() #Optional grahpviz rendering
+
+
+
+
