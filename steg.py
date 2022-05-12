@@ -9,7 +9,7 @@ import graphviz
 import sys
 import cv2
 import numpy
-sys.setrecursionlimit(20000)
+sys.setrecursionlimit(2000000)
 
 def ImgToCover(file, limit):
 	img = cv2.imread(file)
@@ -65,25 +65,22 @@ def bits2a(b):
 def StrToCover(file, msg, weights=False):
 	f = open(file, "r")
 	a = f.read()
-	size = len(a)**2
-	assert(len(m) < (size/2))
+	size = (len(a)*8)**2
+	assert(len(msg) < (size/2))
 	x = []
 	xc = []
 	counter = 0
 	for i in a:
-		cost = 1
-		if (weights and i in weights.keys()):
-			cost = weights[i]
-		elif (weights):
-			cost = len(a)*8 #len(a)*8 cost so high it won't affect the cover object
 		string = str(int(bin(ord(i))[2:]))
 		for i in range(0, 8-len(string)):
 			string = "0"+string
+		string = list(string)
 		for i in range(0, len(string)):
+			cost = size
+			if (i == 2):
+				cost = 1
 			x.append(int(string[i]))
 			xc.append(cost)
-	# print(len(msg))
-	# print()
 	while (not (len(x)/len(msg)%1 == 0)):
 		x.pop()
 		xc.pop()
@@ -91,7 +88,6 @@ def StrToCover(file, msg, weights=False):
 	# print(len(x))
 	# error
 	return (x, xc, a)	
-# Aliquam sit amet purus non sem accumsan varius. Suspendisse lacinia non lectus id congue. Quisque erat justo, volutpat vitae neque mollis, vulputate lobortis arcu. Maecenas hendrerit, mauris ac vestibulum aliquet, lectus urna cursus lorem, sed porta diam neque ut sapien. Sed id ante ac arcu suscipit eleifend. Vestibulum sed rhoncus leo. In ac justo elementum, condimentum tortor id, iaculis sem. Sed a est dictum, finibus nibh nec, vulputate tellus. Nam condimentum varius interdum. Etiam interdum tincidunt nulla, eu consectetur urna commodo id. Aliquam sem mauris, dictum eget turpis a, malesuada blandit ante. Sed congue ante vitae nisl sollicitudin, vitae luctus risus ultricies. Etiam facilisis egestas tellus, eu sollicitudin odio convallis et. Aliquam dignissim lorem eget rhoncus interdum.
 
 def StrToMsg(msg):
 	size = len(msg)**2
@@ -114,13 +110,17 @@ if (useGraphviz):
 # subH = [[1,0,1,1,0,1,0,1,1,1,1,1,1,0,0,1],[1,1,0,0,0,1,1,1,1,0,0,1,0,0,1,1]] # chosen randomly atm but h is height and w is width.
 subH = [[],[]] #subH is a template for the subH generated randomly below
 h = len(subH) #The height of the matrx, concerns the performance of the code.
-mstr = "1asou"
+mstr = "12"
 m = StrToMsg(mstr) #Your message to encode.
-assert(mstr == bits2a(m))
+print(mstr)
+print(bits2a(m))
+# print(mstr == bits2a(m))
+# assert(mstr == bits2a(m))
+
 #Example
 # m = [0,1,1,1,1,0]
 # m = [0,1,1,1]
-print("msg: "+str(m))
+# print("msg: "+str(m))
 # x = [1,0,1,1,0,0,0,1]
 # xc = [1,1,1,1,1,1,1,1]
 # x = [1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,0,1,0,0,0]
@@ -131,21 +131,21 @@ coverFile = 'input.txt'
 stegoFile = 'stegoinput.txt'
 # coverFile = 'dog.jpeg'
 # stegoFile = 'dog2.jpeg'
-
 # (x, xc) = ImgToCover(coverFile, coverlength)
-(x, xc, string) = StrToCover(coverFile, m, {'s': 1})
+(x, xc, string) = StrToCover(coverFile, m)
 assert((len(x) / len(m))%1 == 0) # make sure the bellow is an intager
 w = int(len(x) / len(m)) #This is the rate of the code. This is also the width of the matrix.
+# assert(w%8 == 0) #Confirm I can handle a whole byte with out a pruning interuption
 # Generate ideal subH
 for i in range(0, h):
 	for ii in range(0, w):
-		bit = 0
+		bit = random.getrandbits(1)
 		if (i == h-1):
 			bit = 1
 		elif (ii == 0):
 			bit = 1
-		# subH[i].append(random.getrandbits(1))
 		subH[i].append(bit)
+		# subH[i].append(bit)
 assert(w == len(subH[0])) #Assertation of the above.
 
 #UTILS
@@ -168,7 +168,7 @@ def MatrixMulti(H, e):
 		result.append(subbit)
 	return result
 
-def toNode(node):
+def toNode(edges, node):
 	result = []
 	def filterfun(edge):
 			if edge["to"] == node["name"]:
@@ -179,11 +179,10 @@ def toNode(node):
 		result.append(i)
 	return result
 
-def getNodeByName(name):
-	for n in range(0, len(nodes)):
-		for node in nodes[n]:
-			if (node["name"] == name):
-				return node
+def getNodeByName(nodes, name):
+	for node in nodes:
+		if (node["name"] == name):
+			return node
 
 def bulidH():
 	height = len(m)
@@ -273,16 +272,18 @@ def genNodes():
 		nodes.append(nslice)
 	return (nodes, maxheight)
 
-(nodes, maxheight) = genNodes() #Generate an array of arrays for each set of nodes for each time slice
+# (nodes, maxheight) = genNodes() #Generate an array of arrays for each set of nodes for each time slice
 
-def genEdges(nodes):
+def genEdges():
 	#Initialize varibles
 	originNode = "" 
-	edges = [] #edges of trellis
-	startNodes = [(0,0)] #At each iter these are the nodes to start from
+	edges = [[]] #edges of trellis
+	nodeIndex = 0
+	nodes = [[{"name": "0-0", "cost": 0}],[]]
 	for i in range(0, len(m)): #run once per bit of message
 		for ii in range(0, w): #run w where w = len(x)*w = len(m)
 			index = (i*w)+ii
+			startNodes = nodes[nodeIndex]
 			coverbit = x[index] #The bit of the cover object we are currently using
 			weightedCost = xc[index]
 			cost0 = coverbit*weightedCost #The cost of not adding this column of H. Computed by the weighted cost multiplyed by the existiance of having to not add it either way
@@ -290,96 +291,105 @@ def genEdges(nodes):
 			if (coverbit):
 				cost1 = 0
 			cost1 = cost1*weightedCost
+			# print(coverbit, cost0, cost1)
 			newNodes = []
 			for iii in range(0, len(startNodes)): #Loop through each of the starting nodes
-				startNode = startNodes[iii]
-				print(startNode)
+				name = startNodes[iii]["name"].split("-")
+				startNode = (int(name[0]), int(name[1]), startNodes[iii]["cost"])
 				state = findSyndrom(startNode, i)
 				#don't add
 				node = (startNode[0]+1, startNode[1])
-				if (not node in newNodes):
-					newNodes.append(node)
-				addEdge(edges, str(startNode[0])+"-"+str(startNode[1]), str(node[0])+"-"+str(node[1]), 0, cost0) #Add the edge equivlent of not adding the ith column of H to the syndrom
+				formatnode = {"name": str(startNode[0]+1)+"-"+str(startNode[1]), "cost": 0}
+				if (getNodeByName(nodes[nodeIndex+1], formatnode["name"]) == None):
+					nodes[nodeIndex+1].append(formatnode)
+				edge = {"from": startNodes[iii]["name"], "to": str(node[0])+"-"+str(node[1]), "output": 0, "cost": cost0}
+				edges[nodeIndex].append(edge)
 				#add
 				news = xor(state, CH[index]) #Compute the current syndrom + the index column of H
 				newbit = findState(news, i) #Find the corisponding trellis state of the new syndrom
-				node = (startNodes[iii][0]+1, newbit)
-				addEdge(edges, str(startNode[0])+"-"+str(startNode[1]), str(node[0])+"-"+str(node[1]), 1, cost1) #Add the edge equvilent to adding the ith column of H to the syndrom
-				if (not node in newNodes): #Confirm this is not a duplicate path
-					newNodes.append(node)
-			startNodes = newNodes
-		newStartNodes = []
+				node = (startNode[0]+1, newbit)
+				formatnode = {"name": str(startNode[0]+1)+"-"+str(newbit), "cost": 0}
+				if (getNodeByName(nodes[nodeIndex+1], formatnode["name"]) == None):
+					nodes[nodeIndex+1].append(formatnode)
+				edge = {"from": startNodes[iii]["name"], "to": str(node[0])+"-"+str(node[1]), "output": 1, "cost": cost1}
+				edges[nodeIndex].append(edge)
+			##Post n slice
+			for node in nodes[nodeIndex+1]:
+				paths = toNode(edges[nodeIndex], node)
+				costs = []
+				for path in paths:
+					sourceNode = getNodeByName(nodes[nodeIndex], path["from"])
+					totalPathCost = sourceNode["cost"] + path['cost']
+					costs.append(totalPathCost)
+				if (len(costs) > 0):
+					mincost = costs[0]
+					for cost in costs:
+						if cost < mincost:
+							mincost = cost
+					node['cost'] = mincost
+			nodeIndex += 1
+			nodes.append([])
+			edges.append([])
+		startNodes = nodes[nodeIndex]
 		for ii in range(0, len(startNodes)):
-			startNode = startNodes[ii]
+			name = startNodes[ii]["name"].split("-")
+			startNode = (int(name[0]), int(name[1]), startNodes[ii]["cost"])
 			state = findSyndrom(startNode, i)
 			if (state[i] == m[i]): #Prune our current list of starting nodes before the next run by matching the message bit that will be unchangable after this point
 				newbit = findState(state, i+1) #Find the new state based on the next index.
 				node = (startNode[0]+1, newbit)
-				if (not node in newStartNodes): #Don't append a duplicate start node caused by not changing the syndrom even after adding a column of H
-					newStartNodes.append(node)
-				addEdge(edges, str(startNode[0])+"-"+str(startNode[1]), str(node[0])+"-"+str(node[1]), 2, 0) #Add edges for the prune nodes that shift the state based on new important bits
-		# error
-		startNodes = newStartNodes
-	originNode = getNodeByName(str(newStartNodes[0][0])+"-"+str(newStartNodes[0][1])) #Get the furthest node from the start
-	return (edges, originNode)
+				formatnode = {"name": str(startNode[0]+1)+"-"+str(newbit), "cost": startNode[2]}
+				if (getNodeByName(nodes[nodeIndex+1], formatnode["name"]) == None):
+					nodes[nodeIndex+1].append(formatnode)
+				edge = {"from": startNodes[ii]["name"], "to": formatnode["name"], "output": 2, "cost": 0}
+				edges[nodeIndex].append(edge)
+		nodeIndex += 1
+		nodes.append([])
+		edges.append([])
+	originNode = nodes[nodeIndex][0] #Get the furthest node from the start
+	nodes.pop()
+	edges.pop()
+	return (edges, originNode, nodes)
+(edges, originNode, nodes) = genEdges() #Generate the edges between the nodes.
 
-(edges, originNode) = genEdges(nodes) #Generate the edges between the nodes.
 
-def forwardPass():
-	for n in range(1, len(nodes)):
-		Nnodes = nodes[n]
-		for i in range(0, len(Nnodes)):
-			node = Nnodes[i]
-			print(node)
-			paths = toNode(node)
-			costs = []
-			for path in paths:
-				sourceNode = getNodeByName(path["from"])
-				totalPathCost = sourceNode["cost"] + path['cost']
-				costs.append(totalPathCost)
-			if (len(costs) > 0):
-				mincost = costs[0]
-				for cost in costs:
-					if cost < mincost:
-						mincost = cost
-				node['cost'] = mincost
-
-forwardPass()
-
-def minPath(originNode, output):
-	paths = toNode(originNode)
-	nodepaths = []
-	for path in paths:
-		nodepaths.append([getNodeByName(path['from']),path])
-	minNode = nodepaths[0]
-	for node in nodepaths:
-		if node[0]['cost']+node[1]['cost'] < minNode[0]['cost']+minNode[1]['cost']:
-			minNode = node 
-	if (useGraphviz):
-		dot.edge(minNode[0]['name'], originNode['name'], color='red')
-	if (toNode(minNode[0])):
-		print(minNode[0])
-		return minPath(minNode[0], output+str(minNode[1]['output']))
-	else: 
-		minimumPath = list(filter(lambda x : x != '2' , (output+str(minNode[1]['output']))[::-1])) 
-		result = []
-		for i in range(0, len(minimumPath)):
-			result.append(int(minimumPath[i]))
-		return result
-result = minPath(originNode, "") # Backwards pass of the vertui algorithim
-
-print("x: "+str(x))
-print("result: "+str(result))
+def minPath(oNode):
+	inde = int(oNode["name"].split("-")[0])
+	output = []
+	originNode = nodes[inde][0]
+	for i in range(0, inde):
+		index = inde-i
+		paths = toNode(edges[index-1], originNode)
+		nodepaths = []
+		for path in paths:
+			nodepaths.append([getNodeByName(nodes[index-1],path['from']),path])
+		minNode = nodepaths[0]
+		for node in nodepaths:
+			if node[0]['cost']+node[1]['cost'] < minNode[0]['cost']+minNode[1]['cost']:
+				minNode = node 
+		if (useGraphviz):
+			dot.edge(minNode[0]['name'], originNode['name'], color='red')
+		if (minNode[1]['output'] != 2):
+				output.insert(0, (int(minNode[1]['output'])))
+		print(minNode[0]["name"])
+		originNode = minNode[0]
+	return output
+result = minPath(originNode) # Backwards pass of the vertui algorithim
+print("m  : "+str(m))
 print("syn: "+str(MatrixMulti(H, result)))
+print("cost: "+str(originNode["cost"]))
+
+
 print(bits2a(MatrixMulti(H, result)))
-# assert(MatrixMulti(H, result) == m)
+# print(MatrixMulti(H, result))
+assert(MatrixMulti(H, result) == m)
 # assert(== mstr)
 # print(result)
 # print(strresult)
 
 
-# f = open("stego"+coverFile, "w")
-# f.write(bits2a(strresult)+string[int(coverlength/8):])
+f = open("stego"+coverFile, "w")
+f.write(bits2a(result))
 # print(bits2a(strresult))
 # print(string[:int(coverlength/8)])
 # print(originNode)
@@ -432,8 +442,9 @@ def render():
 			node = Nnodes[i]
 			subGraph.node(node['name'], label=node['name']+" cost: "+str(node['cost']))
 		dot.subgraph(subGraph)
-	for edge in edges:
-		dot.edge(edge['from'], edge['to'], xlabel=str(edge['output'])+" = "+str(edge['cost'])[:5], rank="same")
+	for edgeN in edges:
+		for edge in edgeN:
+			dot.edge(edge['from'], edge['to'], xlabel=str(edge['output'])+" = "+str(edge['cost'])[:5], rank="same")
 	dot.render('doctest-output/trellis.gv').replace('\\', '/')
 	dot.render('doctest-output/trellis.gv', view=True) 
 
