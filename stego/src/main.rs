@@ -1,130 +1,202 @@
-// use std::io;
-// use rand::Rng;
-// use std::cmp::Ordering;
+use std::collections::HashMap;
+use image::io::Reader as ImageReader;
+use image::{GenericImageView, Rgba};
+use std::io::{stdin,stdout,Write};
+use std::time::Instant;
+
 
 
 fn main() {
-    println!("Hello, world!");
-    
-    // let secret_number = rand::thread_rng().gen_range(1..101);
-    
-    const MESSAGE_LENGTH: usize = 4;
-    const MESSAGE: [i32; MESSAGE_LENGTH] = [0, 1, 1, 1];
-    const COVER_LENGTH: usize = 8;
-    const COVER_OBJECT: [i32; COVER_LENGTH] = [1, 0, 1, 1, 0, 0, 0, 1]; 
-    const COVER_WEIGHTS: [i32; COVER_LENGTH] = [1, 1, 1, 1, 1, 1, 1, 1];
-    const SUB_H: [[i32; 2]; 2]  = [[1, 0], [1, 1]];
-    const SUB_WIDTH: usize = COVER_OBJECT.len()/MESSAGE.len(); //rate of the encoding or the width of the sub matrix H
-    const SUB_HEIGHT: usize = SUB_H.len(); //performance parameter
-    assert!(SUB_WIDTH == SUB_H[0].len()); //SUB_WIDTH is rate of code and width of sub matrix
-    assert!((SUB_WIDTH % 1) == 0); //rate of code must be an intager
-    const EXT_HEIGHT: usize = MESSAGE.len(); //extended matrix H height
-    const EXT_WIDTH: usize = COVER_OBJECT.len(); //extended matrix W width
-    let mut EXT_H = [[0i32; EXT_WIDTH]; EXT_HEIGHT]; //extended matrix
+
+	let mut cover_object: Vec<i8> = Vec::new();
+	let mut cover_weights: Vec<i8> = Vec::new();
+	let img = match ImageReader::open("../dog.jpeg") {
+		Ok(reader) => match reader.decode() {
+			Ok(img) => img,
+			Err(e) => panic!("{}", e),
+		},
+		Err(e) => panic!("{}", e),
+	};
+	for i in 0..img.height() {
+		for ii in 0..img.width() {
+			let pixel = img.get_pixel(ii, i);
+			let r = pixel[0];
+			let mut r_byte = format!("{r:b}");
+			for _ in 0..(8-r_byte.len()) {
+				let filler: String = String::from("0");
+				r_byte = filler+&r_byte
+			}
+			let r_lsb = r_byte.pop().expect("Never panic").to_string().parse::<i8>().unwrap();
+			// println!("{}", Rbyte);
+			// println!("{}", );
+			cover_object.push(r_lsb);
+			cover_weights.push(1);
+		}
+	}
+	// const sss: &str = "test";
+	// const MESSAGE_LENGTH: usize = sss.len();
+	let mut s = String::new();
+    print!("Please enter some text: ");
+    let _=stdout().flush();
+    stdin().read_line(&mut s).expect("Did not enter a correct string");
+    s = s.trim().to_string();
+    // println!("trimed {}", s);
+
+	// let msg_string = "t";
+	let mut message = Vec::<i8>::new();
+	for m in s.bytes() {
+		let mut binary = format!("{m:b}");
+		for _ in 0..(8-binary.len()) {
+			let filler: String = String::from("0");
+			binary = filler+&binary
+		}
+		for i in binary.chars() {
+			// println!("teste {}", );
+			message.push(i.to_string().parse::<i8>().unwrap());
+		}
+	}
+
+
+	
+
+	while cover_object.len()%message.len() != 0 {
+		cover_object.pop();
+	}
+
+	let sub_width = cover_object.len()/message.len(); //rate of the encoding or the width of the sub matrix H
+    let sub_height = 5; //performance parameter
+    let mut sub_h: Vec<Vec<i8>> = Vec::new();
+    for i in 0..sub_height {
+    	sub_h.push(Vec::new());
+    	for _ in 0..sub_width {
+    		if rand::random() {
+    			sub_h[i].push(1);
+    		} else {
+    			sub_h[i].push(0);
+    		}
+    	} 
+    }
+ 
+    let ext_height = message.len(); //extended matrix H height
+    let ext_width = cover_object.len(); //extended matrix W width
+
+
+
+    // const message_LENGTH: usize = 4;
+    // const message: [i8; message_LENGTH] = [0, 1, 1, 1];
+    // const COVER_LENGTH: usize = 12;
+    // const cover_object: [i8; COVER_LENGTH] = [1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0]; 
+    // const cover_weights: [i8; COVER_LENGTH] = [-2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+    // const sub_width: usize = cover_object.len()/message.len(); //rate of the encoding or the width of the sub matrix H
+    // const sub_height: usize = 3; //performance parameter
+    // const sub_h: [[i8; sub_width]; sub_height]  = [[1, 1, 0], [0, 1, 0], [0, 0, 1]];
+    // assert!(sub_width == sub_h[0].len()); //sub_width is rate of code and width of sub matrix
+    // assert!((sub_width % 1) == 0); //rate of code must be an intager
+    // const ext_height: usize = message.len(); //extended matrix H height
+    // const ext_width: usize = cover_object.len(); //extended matrix W width
+    let mut ext_h: Vec<Vec<i8>> = Vec::new(); //extended matrix
+    for i in 0..(ext_height) {
+    	ext_h.push(Vec::new());
+    	for _ in 0..ext_width {
+    		ext_h[i].push(0);
+    	}
+    }
+    let mut ext_ch: Vec<Vec<i8>> = Vec::new(); //extended matrix column oriented
+    for i in 0..(ext_width) {
+    	ext_ch.push(Vec::new());
+    	for _ in 0..ext_height {
+    		ext_ch[i].push(0);
+    	}
+    }
+
 
     //BUILD H
     let mut row = 0;
     let mut column = 0;
-    'B: for i in 0..(EXT_WIDTH/SUB_WIDTH) {
-    	for ii in 0..SUB_HEIGHT {
-    		for iii in 0..SUB_WIDTH {
-    			if (row+ii >= EXT_HEIGHT) || (column+iii >= EXT_WIDTH) {
+    'B: for _ in 0..(ext_width/sub_width) {
+    	for ii in 0..sub_height {
+    		for iii in 0..sub_width {
+    			if (row+ii >= ext_height) || (column+iii >= ext_width) {
     				break 'B
     			}
-    			EXT_H[row+ii][column+iii] = SUB_H[ii][iii];
+    			ext_h[row+ii][column+iii] = sub_h[ii][iii];
     		}
     	}
     	row += 1;
-		column = column+SUB_WIDTH;
+		column = column+sub_width;
     }
-    let mut EXT_CH = [[0i32; EXT_HEIGHT]; EXT_WIDTH]; //extended matrix
-    for i in 0..EXT_H[0].len() {
-    	for ii in 0..EXT_H.len() {
-    		EXT_CH[i][ii] = EXT_H[ii][i];
+    
+    for i in 0..ext_h[0].len() {
+    	for ii in 0..ext_h.len() {
+    		ext_ch[i][ii] = ext_h[ii][i];
     	}
     }
-    // const EXT_CH_CON: [[i32; EXT_HEIGHT]; EXT_WIDTH] = EXT_CH;
 
-	fn xor(c: &mut [i32; EXT_HEIGHT], d: [i32; EXT_HEIGHT]) {
+	fn xor(c: &mut Vec<i8>, d: &Vec<i8>) {
 		for i in 0..(c.len()) {
 			c[i] = (c[i] + d[i]) % 2;
 		}
 	}
 
-	fn syndrom(s: &mut [i32; EXT_HEIGHT], matrix: [[i32; EXT_WIDTH]; EXT_HEIGHT], cover: [i32; EXT_WIDTH]) {
-		for i in 0..EXT_HEIGHT {
-			let mut bit = 0;
-			for ii in 0..EXT_WIDTH {
-				bit += (matrix[i][ii]*cover[ii]) % 2;
-			}
-			s[i] = bit % 2;
-		}
-	}
-
-	// let mut s = [0i32; 4];
-	// syndrom(&mut s, ext_h, X);
-	// for i in 0..s.len() {
-	// 	println!("{}", s[i]);
-	// }
-
-	fn find_syndrom(s: &mut [i32; EXT_HEIGHT], name: i32, index: usize) {
-		// let indexs: Vec<&str> = name.split("-").collect();
-		// let name1: i32 = indexs[1].parse().unwrap();
+	fn find_syndrom(s: &mut Vec<i8>, name: i32, index: usize, ext_height: usize, sub_height: usize) {
+		let time = Instant::now();
 		let mut binary: String = format!("{:b}", name);
-		for i in 0..(SUB_HEIGHT-binary.len()) {
+		for _ in 0..(sub_height-binary.len()) {
 			let filler: String = String::from("0");
 			binary = filler+&binary;
 		}
-		for i in 0..(index) {
+		// println!("time1 = {}", time.elapsed().as_nanos());
+		for _ in 0..(index) {
 			let filler: String = String::from("0");
 			binary = filler+&binary;
 		}
-		if EXT_HEIGHT < binary.len() {
-			binary = binary[0..EXT_HEIGHT].to_string();
+		// println!("time2 = {}", time.elapsed().as_nanos());
+		if ext_height < binary.len() {
+			binary = binary[0..ext_height].to_string();
 		} else {
-			for i in 0..(EXT_HEIGHT-binary.len()) {
+			for _ in 0..(ext_height-binary.len()) {
 				let filler: String = String::from("0");
 				binary = binary+&filler;
 			}
 		}
-		assert!(binary.len() == EXT_HEIGHT);
+		// println!("time3 = {}", time.elapsed().as_nanos());
+		assert!(binary.len() == ext_height);
 		let char_vec: Vec<&str> = binary.trim().split("").collect();
 	    for i in 1..char_vec.len()-1 {
-	    	// println!("{}", char_vec[i]);
-	        s[i-1] = char_vec[i].parse().unwrap()
+	        s.push(char_vec[i].parse::<i8>().unwrap())
 	    }
+	    // println!("time4 = {}", time.elapsed().as_nanos());
 	}
+	let mut syndrom: Vec<i8> = Vec::new();
+	find_syndrom(&mut syndrom, 3, 0, ext_height, sub_height);
+	let _ = stdout().flush();
+	let _ = stdin().read_line(&mut "".to_string()).unwrap();
+			
 
-	fn find_state(r: &mut i32, s: [i32; EXT_HEIGHT], index: usize) {
+	fn find_state(r: &mut i32, s: Vec<i8>, index: usize, sub_height: usize) {
 		let mut result: String = String::new();
 		for i in 0..s.len() {
 			result = result+(&s[i].to_string());
 		}
-		if index <= (s.len()-SUB_HEIGHT).try_into().unwrap() {
-			result = result[index..(index+SUB_HEIGHT)].to_string();
+		if index <= (s.len()-sub_height).try_into().unwrap() {
+			result = result[index..(index+sub_height)].to_string();
 		} else {
 			result = result[index..(result.len())].to_string();
+			for _ in 0..(sub_height-result.len()) {
+				let filler: String = String::from("0");
+				result = result+&filler
+			}
 		}
 		let newbit = isize::from_str_radix(&result, 2).unwrap();
 		*r = newbit as i32;
 	}
 
-	let mut e = [0i32; EXT_HEIGHT];
-	let name = 2;
-	for i in 0..(EXT_HEIGHT-1) {
-		find_syndrom(&mut e, name, i);
-		let mut newbit: i32 = 0;
-		find_state(&mut newbit, e, i);
-		assert!(newbit == name);
-	}
-		
-
 	// #[derive(Copy, Clone)]
-	#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+	#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 	struct Node {
 	    name1: i32,
 	    name2: i32,
-	    cost: i32
+	    cost: i8
 	}
 
 	impl Node {
@@ -135,233 +207,236 @@ fn main() {
 	            cost: 0
 	        }
 	    }
-	    fn new(name1: i32, name2: i32, cost: i32) -> Node {
+	    fn new(name1: i32, name2: i32, cost: i8) -> Node {
 	        Node{
 	            name1: name1,
 	            name2: name2,
 	            cost: cost
 	        }
 	    }
-	    fn print(&self) {
-	    	println!("{}-{} cost: {}",self.name1, self.name2, self.cost);
-	    }
+	    // fn print(&self) {
+	    // 	println!("{}-{} cost: {}",self.name1, self.name2, self.cost);
+	    // }
 	}
-	#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+	#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 	struct Edge {
 	    to1: i32,
 	    to2: i32,
 	    from1: i32,
 	    from2: i32,
-	    cost: i32
+	    cost: i8,
+	    output: i8
 	}
 
 	impl Edge {
-	    fn new(from1: i32, from2: i32, to1: i32, to2: i32, cost: i32) -> Edge {
+	    fn new(from1: i32, from2: i32, to1: i32, to2: i32, cost: i8, output: i8) -> Edge {
 	        Edge{
 	            to1: to1,
 	            to2: to2,
 	            from1: from1,
 	            from2: from2,
-	            cost: cost
+	            cost: cost,
+	            output: output
 	        }
 	    }
-	    fn print(&self) {
-	    	println!("from {}-{} to {}-{} cost: {}",self.from1, self.from1, self.to1, self.to2, self.cost);
-	    }
+	    // fn print(&self) {
+	    // 	println!("from {}-{} to {}-{} cost: {}, output: {}",self.from1, self.from2, self.to1, self.to2, self.cost, self.output);
+	    // }
 	}
 
-	fn to_node<'a>(paths: &mut Vec<&'a Edge>, edges: &'a mut Vec<Vec<Edge>>, node: &Node) {
-		for i in 0..edges[((node.name1-1) as usize)].len() {
-			if edges[((node.name1-1) as usize)][i].to2 == node.name2 {
-				paths.push(&edges[((node.name1-1) as usize)][i]);
+	fn get_node(r_node: &mut Node, nodes: &Vec<Node>, node_index: i32) {
+		for i in 0..nodes.len() {
+			if nodes[i].name2 == node_index {
+				let new_node = nodes[i].clone();
+				*r_node = new_node;
 			}
 		}
 	}
 
-	// fn get_node<'a>(node: &mut &'a Node, nodes: &'a mut Vec<Vec<Node>>, edge: &Edge) {
-	// 	let mut barrow = &nodes[0][0];
-	// 	for i in 0..nodes[((edge.from1) as usize)].len() {
-	// 		if nodes[((edge.from1) as usize)][i].name2 == edge.from2 {
-	// 			barrow = &nodes[((edge.from1) as usize)][i];
-	// 			node = &mut barrow;
-	// 		}
-	// 	}
-	// }
 
-	//HashMap
+	fn to_node(paths: &mut Vec<Edge>, edges: &Vec<Edge>, node: &Node) {
+		for i in 0..edges.len() {
+			if edges[i].to2 == node.name2 {
+				let new_edge = edges[i].clone();
+				paths.push(new_edge);
+			}
+		}
+	}
+
 	let mut nodes: Vec<Vec<Node>> = Vec::new();
 	nodes.push(Vec::new());
 	nodes[0].push(Node::new(0, 0, 0));
 	let mut edges: Vec<Vec<Edge>> = Vec::new();
-	edges.push(Vec::new());
-	
+
 
 	
-	fn forward_pass(nodes: &mut Vec<Vec<Node>>, edges: &mut Vec<Vec<Edge>>, ch: [[i32; EXT_HEIGHT]; EXT_WIDTH]) {
+	fn forward_pass(nodes: &mut Vec<Vec<Node>>, edges: &mut Vec<Vec<Edge>>, ch: Vec<Vec<i8>>, ext_height: usize, sub_width: usize, sub_height: usize, cover_object: Vec<i8>, cover_weights: Vec<i8>, message: Vec<i8>) {
 		let mut node_index: usize = 0;
-		for i in 0..2 {//EXT_HEIGHT
-			for ii in 0..SUB_WIDTH {//SUB_WIDTH
-				let index: usize = (i*SUB_WIDTH)+ii;
-				// println!("nodeindex {}, index {}", node_index, index);
-				// for ii in 0..nodes[node_index].len() {
-				// 	nodes[node_index][ii].print();
-				// }
-				nodes.push(Vec::new());
-				edges.push(Vec::new());
-				let coverbit: i32 = COVER_OBJECT[index];
-				let weight: i32 = COVER_WEIGHTS[index];
-				let mut cost1: i32 = 1*weight;
-				let mut cost0: i32 = 1*weight;
+		
+		println!("exth = {}, sub_width = {}", ext_height, sub_width);
+		for i in 0..ext_height {//ext_height
+			// println!("sub_width {}", sub_width);
+			// let _ = stdout().flush();
+			// let _ = stdin().read_line(&mut "".to_string()).unwrap();
+			// let time = Instant::now();
+			// 	for iii in 0..nodes[node_index].len() {
+			// 		println!("time1 = {}", time.elapsed().as_nanos());
+			for ii in 0..sub_width {//sub_width
+				let index: usize = (i*sub_width)+ii;
+				// println!("index {} out of {}", index, ((ext_height-1)*sub_width)+(sub_width-1));
+				let coverbit: i8 = cover_object[index];
+				let weight: i8 = cover_weights[index];
+				let mut cost1: i8 = coverbit;
+				let mut cost0: i8;
 				if coverbit == 1 {
 					cost0 = 0
 				} else {
-					cost1 = 0
+					cost0 = 1
 				}
+				cost1 = cost1*weight;
+				cost0 = cost0*weight;
+				let mut new_nodes: HashMap<Node, i8> = HashMap::new();
+				let mut new_edges: HashMap<Edge, i8> = HashMap::new();
 				for iii in 0..nodes[node_index].len() {
+					let time = Instant::now();
 					let start_node: &Node = &nodes[node_index][iii];
-					let mut syndrom = [0i32; EXT_HEIGHT];
-					find_syndrom(&mut syndrom, start_node.name2, i);
-					xor(&mut syndrom, ch[index]);
-					// for i in 0..syndrom.len() {
-					// 	println!("{}",syndrom[i]);
-					// }
+					let mut syndrom: Vec<i8> = Vec::new();
+					find_syndrom(&mut syndrom, start_node.name2, i, ext_height, sub_height);
+					xor(&mut syndrom, &ch[index]);
 					let mut newbit: i32 = 0;
-					find_state(&mut newbit, syndrom, i);
-					let node0 = Node::new(start_node.name1+1, start_node.name2, 0);
-					let node1 = Node::new(start_node.name1+1, newbit, 0);
-					let edge0 = Edge::new(start_node.name1, start_node.name2, start_node.name1+1, start_node.name2, cost0);
-					let edge1 = Edge::new(start_node.name1, start_node.name2, start_node.name1+1, newbit, cost1);
-					edges[node_index].push(edge0);
-					edges[node_index].push(edge1);
-					nodes[node_index+1].push(node0);
-					nodes[node_index+1].push(node1);
-				}
-				// println!("N over");
-				// for ii in 0..nodes[node_index+1].len() {
-				// 	nodes[node_index+1][ii].print();
-				// }
-				edges[node_index].sort();
-				edges[node_index].dedup();
-				nodes[node_index+1].sort();
-				nodes[node_index+1].dedup();
-				// println!("E over");
-				// for ii in 0..nodes[node_index+1].len() {
-				// 	nodes[node_index+1][ii].print();
-				// }
-				node_index += 1;
-				for iii in 0..nodes[node_index].len() {
-					let mut paths: Vec<&Edge> = Vec::new();
-					let node: &Node = &nodes[node_index][iii];
-					to_node(&mut paths, edges, node);
-					let mut min_path: &Edge = paths[0];
-					let mut min_node: &Node = &Node::new_empty();
-					for i in 0..nodes[((min_path.from1) as usize)].len() {
-						if nodes[((min_path.from1) as usize)][i].name2 == min_path.from2 {
-							min_node = &nodes[((min_path.from1) as usize)][i];
-						}
+					find_state(&mut newbit, syndrom, i, sub_height);
+					if cost1 != -2 {
+						let node0 = Node::new(start_node.name1+1, start_node.name2, 0);
+						let edge0 = Edge::new(start_node.name1, start_node.name2, start_node.name1+1, start_node.name2, cost1, 0);
+						new_nodes.insert(node0, 0);
+						new_edges.insert(edge0, 0);
 					}
-					for i in 1..paths.len() {
-						let path = paths[i];
-						let mut temp_node: &Node = &nodes[node_index][1];
-						for i in 0..nodes[((path.from1) as usize)].len() {
-							if nodes[((path.from1) as usize)][i].name2 == path.from2 {
-								min_node = &nodes[((path.from1) as usize)][i];
-							}
-						}
-						// println!("path.cost = {}, temp_node.cost = {}, min_path.cost = {}, min_node.cost {}", path.cost, temp_node.cost, min_path.cost, min_node.cost);
+					if cost0 != -2 {
+						let node1 = Node::new(start_node.name1+1, newbit, 0);
+						let edge1 = Edge::new(start_node.name1, start_node.name2, start_node.name1+1, newbit, cost0, 1);
+						new_edges.insert(edge1, 0);
+						new_nodes.insert(node1, 0);
+					}
+				}
+				// println!("time = {}, sw = {}", time.elapsed().as_nanos(), sub_width);
+
+				nodes.push(new_nodes.into_keys().collect());
+				edges.push(new_edges.into_keys().collect());
+				node_index += 1;
+				// println!("Node len {}", nodes[node_index].len());
+				
+				for iii in 0..nodes[node_index].len() {
+					let node: &Node = &nodes[node_index][iii];
+					let mut paths: Vec<Edge> = Vec::new();
+					to_node(&mut paths, &edges[node_index-1], node);
+					let mut min_path: Edge = paths[0];
+					let mut min_node: Node = Node::new_empty();
+					get_node(&mut min_node, &nodes[node_index-1], min_path.from2);
+					for path in &paths {
+						let mut temp_node: Node = min_node;
+						get_node(&mut temp_node, &nodes[node_index-1], path.from2);
 						if (path.cost + temp_node.cost) < (min_path.cost + min_node.cost) {
-							min_path = paths[i];
+							min_path = path.clone();
 							min_node = temp_node;
 						}
 					}
 					nodes[node_index][iii].cost = min_path.cost + min_node.cost;
 				}
+				// println!("time2 = {}", time.elapsed().as_nanos());
 			}
-			nodes.push(Vec::new());
-			edges.push(Vec::new());
-			// println!("PRUNE");
-			for iii in 0..nodes[node_index].len() {
-				let mut paths: Vec<&Edge> = Vec::new();
-				let node: &Node = &nodes[node_index][iii];
-				// node.print();
-				let mut syndrom = [0i32; EXT_HEIGHT];
-				find_syndrom(&mut syndrom, node.name2, i);
-				if syndrom[i] == MESSAGE[i] {
+			let mut new_nodes: HashMap<Node, i8> = HashMap::new();
+			let mut new_edges: HashMap<Edge, i8> = HashMap::new();
+			for ii in 0..nodes[node_index].len() {
+				let node: Node = nodes[node_index][ii];
+				let mut syndrom: Vec<i8> = Vec::new();
+				find_syndrom(&mut syndrom, node.name2, i, ext_height, sub_height);
+				if syndrom[i] == message[i] {
 					let mut newbit = 0;
-					if i == (MESSAGE.len()-1) {
-						find_state(&mut newbit, syndrom, i);
+					if i == (message.len()-1) {
+						find_state(&mut newbit, syndrom, i, sub_height);
 					} else {
-						find_state(&mut newbit, syndrom, i+1);
+						find_state(&mut newbit, syndrom, i+1, sub_height);
 					}
-					let newnode = Node::new(node.name1+1, newbit, 0);
-					// newnode.print();
-					let newedge = Edge::new(node.name1, node.name2, node.name1+1, newbit, 2);
-					edges[node_index].push(newedge);
-					nodes[node_index+1].push(newnode);
-					// let mut node: Node = nodes[0][0].clone()
+					let newnode = Node::new(node.name1+1, newbit, node.cost);
+					let newedge = Edge::new(node.name1, node.name2, node.name1+1, newbit, 0, 2);
+					new_edges.insert(newedge, 0);
+					new_nodes.insert(newnode, 0);
 				}
 			}
+			if new_edges.len() == 0 || new_nodes.len() == 0 {
+				panic!("Failed encoding try a different cover object or remove wet paper elements");
+			}
+			nodes.push(new_nodes.into_keys().collect());
+			edges.push(new_edges.into_keys().collect());
 			node_index += 1;
-			// println!("END PRUNE");
 		}
 	}
+	println!("START forward_pass");
+	forward_pass(&mut nodes, &mut edges, ext_ch, ext_height, sub_width, sub_height, cover_object, cover_weights, message);
 
-	forward_pass(&mut nodes, &mut edges, EXT_CH);
-
-	// for i in 0..nodes.len() {
-	// 	println!("time slice {}",i);
+	// for i in 0..nodes.len()-1 {
+	// 	println!("timeslice {}",i);
 	// 	for ii in 0..nodes[i].len() {
 	// 		nodes[i][ii].print();
 	// 	}
+	// 	for ii in 0..edges[i].len() {
+	// 		edges[i][ii].print();
+	// 	}
 	// }
 
-	fn backward_pass(nodes: &mut Vec<Vec<Node>>, edges: &mut Vec<Vec<Edge>>, ch: [[i32; EXT_HEIGHT]; EXT_WIDTH]) {
-
+	fn backward_pass(stego_obj: &mut Vec<i8>, cost: &mut i8, nodes: Vec<Vec<Node>>, edges: Vec<Vec<Edge>>) {
+		let mut node: Node = nodes[(nodes.len()-1) as usize][0];
+		*cost = node.cost;
+		for i in 0..nodes.len()-1 {
+			let index: usize = (nodes.len()-1)-i;
+			let mut paths: Vec<Edge> = Vec::new();
+			to_node(&mut paths, &edges[index-1], &node);
+			
+			'A: for ii in 0..paths.len() {
+				let mut temp_node: Node = Node::new_empty();
+				get_node(&mut temp_node, &nodes[index-1], paths[ii].from2);
+				let cost: i8 = temp_node.cost + paths[ii].cost;
+				if cost <= node.cost {
+					if paths[ii].output != 2 {
+						stego_obj.push(paths[ii].output);
+					}
+					node = temp_node;
+					break 'A
+				}
+			}
+		}
+		stego_obj.reverse();
 	}
+	let mut stego_object: Vec<i8> = Vec::new();
+	let mut cost: i8 = 0;
+	println!("START backward_pass");
+	backward_pass(&mut stego_object, &mut cost, nodes, edges,);
+	println!("len {}",stego_object.len());
+	println!("cost = {}",cost);
+
+
+	let mut newimg = img.into_rgba8();
+	let mut index = 0;
+	for i in 0..newimg.height() {
+		for ii in 0..newimg.width() {
+			let pixel = newimg.get_pixel(ii, i);
+			if index < stego_object.len() {
+				let r = pixel[0];
+				let mut r_byte = format!("{r:b}");
+				for _ in 0..(8-r_byte.len()) {
+					let filler: String = String::from("0");
+					r_byte = filler+&r_byte
+				}
+				r_byte.pop();
+				r_byte = r_byte+&stego_object[index].to_string();
+				let new_pixel = Rgba([u8::from_str_radix(&r_byte, 2).unwrap(), pixel[1], pixel[2], pixel[3]]);
+				newimg.put_pixel(ii, i, new_pixel);
+			}
+			index += 1;
+		}
+	}
+	newimg.save("../dog2.jpeg").expect("Faild to save image");
 
 
 
-
-	// let mut a = [0, 1, 1];
-	// let b = [0, 0, 1];
-	// xor(&mut a,b);
-	// for i in 0..a.len() {
-	// 	println!("{}",a[i]);
-	// }
-
-    // for i in 0..ext_height {
-    // 	for ii in 0..ext_width {
-    // 		print!("{}",ext_h[i][ii]);
-    // 	}
-    // }
-    
-
-
-
-
-
-
-
-
-
-
-
-
- //    loop {
- //    	guess = String::new();
- //    	io::stdin()
- //        .read_line(&mut guess)
- //        .expect("Failed to read line");
- //        println!("You guessed: {}", guess);
-	//     let guess: u32 = guess.trim().parse().expect("Please type a number!");
-	//     println!("It was: {}",secret_number);
-	//     match guess.cmp(&secret_number) {
-	//         Ordering::Less => println!("Too small!"),
-	//         Ordering::Greater => println!("Too big!"),
-	//         Ordering::Equal => {
-	//         	println!("You win!");
-	//         	break
-	//         },
-	//     };
-	// };
 }
