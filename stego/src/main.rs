@@ -244,7 +244,7 @@ fn main() {
 	for i in 0..syndrom.len() {
 		println!("s{} = {}", i, syndrom[i]);
 	}
-	assert!(syndrom == message); //assert the encoding was done properly
+	assert!(syndrom == message); //assert the encoding was done properl
 
 
 	let mut newimg = img.into_rgba8();
